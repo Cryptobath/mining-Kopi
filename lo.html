@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>lo</title>
+</head>
+<body>
+REM  *****  MODULE ClipboardWrk  *****
+REM Purpose: Allows the user to Control-A, Control-C a browser page
+REM               and start the  macro called UpdateCalcFrmClip
+REM          this could installed as a menu item from the tool bar
+REM          or as a button
+REM The Macro does the following:
+REM          1. scan through the text found in the system clipboard
+REM              for numbers  postfixed with "dB"
+REM          2. saves all possible representations 1, 1.x, 12,12.x,
+REM              132, 122.x  and saves these values in an array.
+REM          3. It then scans the sheet where you want to post these
+REM              values  looking for the next available (empty) rows
+REM examples where the variable StartingCol = 3 (column E) then
+REM dB        |A|B|C|D|E|
+REM 12.5     |  |  |1|2|5|
+REM 134       |  |1|3|4| |
+REM 120.9    |  |1|2|0|9|
+'
+' To use this macro application go to subroutine UpdateCalcFrmClip
+'   and change the values in variables StartingCol, StartingRow and
+'   CollectionSheetName to reflect where you want to
+'   store dB values on your spreadsheet.
+'
+'  If you give the StartingRow value that is currently in use
+'  the macro will scan the column for unit values. The first after
+'  blank cell encountered the StartingRow will be where the macro
+' will start recording the new dB values
+
+Global convertedString$
+Global ColVals(4,100) as string ' 135.4dB
+Global StartingCol as integer
+Global StartingRow as integer
+Global CollectionSheetName as string
+
+'SUBROUTINE UpdateCalcFrmClip
+'PURPOSE: Main routine to scan the system clipboard and find dB values
+sub UpdateCalcFrmClip
+StartingCol=4 'Column E
+StartingRow=3 'Row 4
+CollectionSheetName="Collections"
+call ConvertClipToText 'Move clipboard text into convertedString$
+call FinddBs 'find dB numbers and add them to the ColVals array
+call UpdateCalc  'add dB numbers to spreadsheet cells
+end sub
+
+sub UpdateCalc
+unitArry=array("Hundrds","Tens","Units","Tenths")
+CurCol=StartingCol  'F = tenths
+CurRow=StartingRow
+oDoc=ThisComponent
+oSheets=oDoc.Sheets
+oSht=oSheets.getByName(CollectionSheetName)
+'find blank row to store dB's
+oCell=oSht.getcellbyposition(CurCol-1,CurRow)
+TstUnits=oCell.getString
+while len(TstUnits)>0
+CurRow=CurRow+1
+'test for an empty units value
+oCell=oSht.getcellbyposition(CurCol-1,CurRow)
+TstUnits=oCell.getString
+wend
+x=0
+Units=ColVals(x,1)
+While len(Units)>0
+for i=0 to 3
+dbStr=ColVals(x,i)
+if len(dbStr>0) then
+'test for an empty units value
+oCell=oSht.getcellbyposition(CurCol-i,CurRow)
+oCell.String=dbStr
+end if
+next i
+CurRow=CurRow+1
+x=x+1
+Units=ColVals(x,1)
+wend
+end sub
+
+Sub ConvertClipToText
+'This clipboard routine was created by Andrew Pitonyak
+'my only adaptation was to make convertedString$ variable a global
+'to pass it on to the next subroutine for processing
+Dim oClip, oClipContents, oTypes
+Dim oConverter
+' convertedString$ is now a global
+Dim i%, iPlainLoc%
+
+iPlainLoc = -1
+
+oClip = createUnoService("com.sun.star.datatransfer.clipboard.SystemClipboard")
+oConverter = createUnoService("com.sun.star.script.Converter")
+
+'  Print "Clipboard name = " & oClip.getName()
+'  Print "Implemantation name = " & oClip.getImplementationName()
+oClipContents = oClip.getContents()
+oTypes = oClipContents.getTransferDataFlavors()
+
+Dim msg$, iLoc%, outS
+msg = ""
+iLoc = -1
+For i=LBound(oTypes) To UBound(oTypes)
+If oTypes(i).MimeType = "text/plain;charset=utf-16" Then
+iPlainLoc = i
+Exit For
+End If
+'msg = msg & "Mime type = " & x(ii).MimeType & " normal = " & x(ii).HumanPresentableName & Chr$(10)
+Next
+If (iPlainLoc >= 0) Then
+convertedString$ = oConverter.convertToSimpleType(oClipContents.getTransferData(oTypes(iPlainLoc)), com.sun.star.uno.TypeClass.STRING)
+MsgBox convertedString$
+End If
+End Sub
+
+'SUBROUTINE FinddBs
+'PURPOSE: for each occurrence of "dB" in the clipboard
+'         store the value in ColVals array
+sub FinddBs
+x=0  'occurrence of each dB in clipboard
+tmp=convertedString$
+j=inStr(1,tmp,"dB",1)
+while <j></j>
+if j>7 then
+valstr=mid(tmp,j-5,5)  '123.4dB'
+k=inStr(1,valStr,".",1)
+if k>0 then
+tenths=mid(valStr,k+1,1)
+hundrds=mid(valStr,1,1)
+tens=mid(valStr,2,1)
+units=mid(valStr,3,1)
+else
+'no decimal pt, assume 1 to 3 digit value
+r=len(ValStr)
+hundrds=mid(valStr,r-2,1)
+tens=mid(valStr,r-1,1)
+units=mid(valStr,r,1)
+tenths=""
+end if
+if numStr(hundrds)=false then
+hundrds=""
+end if
+if numStr(tens)=false then
+tens=""
+end if
+if numStr(units)=false then
+units=""
+end if
+ColVals(x,3)=hundrds
+ColVals(x,2)=tens
+ColVals(x,1)=units
+ColVals(x,0)=tenths
+x=x+1
+tmp=mid(tmp,j+2,len(tmp))
+j=inStr(1,tmp,"dB",1)
+end if
+wend
+end sub
+
+function numStr(numbrStr)
+'return true if string is numeric
+x=asc(numbrStr) ' "0"=48 "9"=57 in ascii
+if x>47 and x<58 then
+numStr=True
+else
+numStr=false
+end if
+end function
+</body>
+</html>
